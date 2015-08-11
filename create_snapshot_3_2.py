@@ -50,7 +50,8 @@ def _convert_to_bulk(chunk):
         return json.dumps(n)
 
     return '\n'.join([_remove_newlines(patch_node(n))
-                      for n in chunk if n['_type'] != 'provider_context'])
+                      for n in chunk if n['_type'] != 'provider_context'])\
+        + '\n'
 
 
 def _append_to_file(f, js):
