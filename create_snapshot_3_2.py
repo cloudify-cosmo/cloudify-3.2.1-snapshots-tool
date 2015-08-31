@@ -1,9 +1,10 @@
 import argparse
 import json
 import os
+import shutil
 import sys
 import tempfile
-import shutil
+import zipfile
 
 from os import path
 from distutils import spawn
@@ -16,6 +17,7 @@ CHUNK_SIZE = 100
 
 VERSION = '3.2'
 VERSION_FILE = 'version'
+AGENTS_FILE = 'agents.json'
 ELASTICSEARCH = 'es_data'
 CRED_DIR = 'credentials'
 CRED_KEY_NAME = 'agent_key'
@@ -207,6 +209,11 @@ sudo docker exec cfy /bin/bash -c \
 '''.format(worker_args)])
     scp(output_path, '~/snapshot_3_2.zip', False)
     call(['cfy', 'ssh', '-c', 'rm -f ~/snapshot_3_2.zip ~/script.py'])
+    import agents
+    _, agents_path = tempfile.mkstemp()
+    agents.dump_agents(agents_path)
+    with zipfile.ZipFile(output_path, 'a') as archive:
+        archive.write(agents_path, AGENTS_FILE)
 
 
 def main():
