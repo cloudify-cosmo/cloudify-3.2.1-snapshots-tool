@@ -5,8 +5,15 @@ import json
 from cloudify_cli import utils as cli_utils
 
 
+_BROKER_URL_FORMAT = 'amqp://cloudify:c10udify@{0}:5672//'
+
+
 def _is_compute(node):
     return 'cloudify.nodes.Compute' in node.type_hierarchy
+
+
+def _is_windows(node):
+    return 'cloudify.openstack.nodes.WindowsServer' in node.type_hierarchy
 
 
 def _get_rest_client():
@@ -29,6 +36,9 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent):
         result['ip'] = node_instance.runtime_properties['ip']
     elif 'ip' in node_properties:
         result['ip'] = node_properties['ip']
+    result['manager_ip'] = cli_utils.get_management_server_ip()
+    result['windows'] = _is_windows(node)
+    result['broker_url'] = _BROKER_URL_FORMAT.format(result['manager_ip'])
     return result
 
 
