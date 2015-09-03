@@ -21,7 +21,7 @@ AGENTS_FILE = 'agents.json'
 ELASTICSEARCH = 'es_data'
 CRED_DIR = 'credentials'
 CRED_KEY_NAME = 'agent_key'
-INFLUXDB = 'influxdb-data'
+INFLUXDB = 'influxdb_data'
 INFLUXDB_DUMP_CMD = ('curl -s -G "http://localhost:8086/db/cloudify/series'
                      '?u=root&p=root&chunked=true" --data-urlencode'
                      ' "q=select * from /.*/" > {0}')
