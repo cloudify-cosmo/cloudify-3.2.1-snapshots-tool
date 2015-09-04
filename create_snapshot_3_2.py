@@ -18,6 +18,8 @@ CHUNK_SIZE = 100
 VERSION = '3.2'
 VERSION_FILE = 'version'
 AGENTS_FILE = 'agents.json'
+MANAGER_FILE = 'manager.json'
+MANAGER_IP_KEY = 'MANAGEMENT_IP'
 ELASTICSEARCH = 'es_data'
 CRED_DIR = 'credentials'
 CRED_KEY_NAME = 'agent_key'
@@ -182,7 +184,7 @@ def worker(config):
 
     for n in filter(lambda x: x['_type'] == 'node', storage):
         props = n['_source']['properties']
-        if 'cloudify_agent' in props:
+        if 'cloudify_agent' in props and 'key' in props['cloudify_agent']:
             node_id = n['_id']
             agent_key_path = props['cloudify_agent']['key']
             os.makedirs(path.join(archive_cred_path, node_id))
@@ -192,6 +194,12 @@ def worker(config):
     # version
     with open(path.join(tempdir, VERSION_FILE), 'w') as f:
         f.write(VERSION)
+
+    manager = {
+        MANAGER_IP_KEY: os.environ[MANAGER_IP_KEY]
+    }
+    with open(path.join(tempdir, MANAGER_FILE), 'w') as f:
+        f.write(json.dumps(manager))
 
     # zip
     shutil.make_archive('/tmp/home/snapshot_3_2',
@@ -209,9 +217,12 @@ sudo docker exec cfy /bin/bash -c \
 '''.format(worker_args)])
     scp(output_path, '~/snapshot_3_2.zip', False)
     call(['cfy', 'ssh', '-c', 'rm -f ~/snapshot_3_2.zip ~/script.py'])
+    with zipfile.ZipFile(output_path, 'r') as archive:
+        manager = json.loads(archive.open(MANAGER_FILE).read())
+        manager_ip = manager[MANAGER_IP_KEY]
     import agents
     _, agents_path = tempfile.mkstemp()
-    agents.dump_agents(agents_path)
+    agents.dump_agents(agents_path, manager_ip)
     with zipfile.ZipFile(output_path, 'a') as archive:
         archive.write(agents_path, AGENTS_FILE)
 
