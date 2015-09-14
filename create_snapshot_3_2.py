@@ -129,8 +129,6 @@ def get_json_objects(f):
         except:
             pass
 
-    assert not s
-
 
 def copy_data(archive_root, config, to_archive=True):
     DATA_TO_COPY = [
@@ -182,7 +180,7 @@ def worker(config):
 
     for n in filter(lambda x: x['_type'] == 'node', storage):
         props = n['_source']['properties']
-        if 'cloudify_agent' in props:
+        if 'cloudify_agent' in props and 'key' in props['cloudify_agent']:
             node_id = n['_id']
             agent_key_path = props['cloudify_agent']['key']
             os.makedirs(path.join(archive_cred_path, node_id))
