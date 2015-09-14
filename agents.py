@@ -21,7 +21,8 @@ def _get_rest_client():
     return cli_utils.get_rest_client(management_ip)
 
 
-def _get_node_instance_agent(node_instance, node, bootstrap_agent):
+def _get_node_instance_agent(node_instance, node, bootstrap_agent,
+        manager_ip):
     result = {}
     agent = copy.deepcopy(bootstrap_agent)
     node_properties = node.properties
@@ -36,15 +37,17 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent):
         result['ip'] = node_instance.runtime_properties['ip']
     elif 'ip' in node_properties:
         result['ip'] = node_properties['ip']
-    result['manager_ip'] = cli_utils.get_management_server_ip()
+    result['manager_ip'] = manager_ip
     result['windows'] = _is_windows(node)
     result['broker_url'] = _BROKER_URL_FORMAT.format(result['manager_ip'])
     return result
 
 
-def get_agents(client=None):
+def get_agents(client=None, manager_ip=None):
     if client is None:
         client = _get_rest_client()
+    if manager_ip is None:
+        manager_ip = cli_utils.get_management_server_ip()
     bootstrap_agent = client.manager.get_context().get('context', {}).get(
         'cloudify', {}).get('cloudify_agent', {})
     result = {}
@@ -59,14 +62,15 @@ def get_agents(client=None):
                     node_result[node_instance.id] = _get_node_instance_agent(
                         node_instance,
                         node,
-                        bootstrap_agent)
+                        bootstrap_agent,
+                        manager_ip)
                 deployment_result[node.id] = node_result
         result[deployment.id] = deployment_result
     return result
 
 
-def dump_agents(filepath):
-    agents = get_agents()
+def dump_agents(filepath, manager_ip):
+    agents = get_agents(manager_ip=manager_ip)
     with open(filepath, 'w') as out:
         out.write(json.dumps(agents))
 
