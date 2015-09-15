@@ -15,8 +15,12 @@ from subprocess import check_output
 
 CHUNK_SIZE = 100
 
+_METADATA_FILE = 'metadata.json'
+# metadata fields
+_M_HAS_CLOUDIFY_EVENTS = 'has_cloudify_events'
+_M_VERSION = 'snapshot_version'
+
 VERSION = '3.2'
-VERSION_FILE = 'version'
 AGENTS_FILE = 'agents.json'
 MANAGER_FILE = 'manager.json'
 MANAGER_IP_KEY = 'MANAGEMENT_IP'
@@ -160,12 +164,14 @@ def copy_data(archive_root, config, to_archive=True):
 
 # ------------------ Main ---------------------
 def worker(config):
+    metadata = {}
     tempdir = tempfile.mkdtemp('-snapshot-data')
     # files/dirs copy
     copy_data(tempdir, config)
 
     # elasticsearch
     storage = dump_elasticsearch(path.join(tempdir, ELASTICSEARCH))
+    metadata[_M_HAS_CLOUDIFY_EVENTS] = True
     # influxdb
     influxdb_file = path.join(tempdir, INFLUXDB)
     influxdb_temp_file = influxdb_file + '.temp'
@@ -190,14 +196,17 @@ def worker(config):
                         path.join(archive_cred_path, node_id, CRED_KEY_NAME))
 
     # version
-    with open(path.join(tempdir, VERSION_FILE), 'w') as f:
-        f.write(VERSION)
+    metadata[_M_VERSION] = VERSION
 
     manager = {
         MANAGER_IP_KEY: os.environ[MANAGER_IP_KEY]
     }
     with open(path.join(tempdir, MANAGER_FILE), 'w') as f:
         f.write(json.dumps(manager))
+
+    # metadata
+    with open(path.join(tempdir, _METADATA_FILE), 'w') as f:
+        json.dump(metadata, f)
 
     # zip
     shutil.make_archive('/tmp/home/snapshot_3_2',
