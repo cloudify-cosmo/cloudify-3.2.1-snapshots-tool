@@ -6,6 +6,7 @@ from cloudify_cli import utils as cli_utils
 
 
 _BROKER_URL_FORMAT = 'amqp://cloudify:c10udify@{0}:5672//'
+_VERSION = '3.2'
 
 
 def _is_compute(node):
@@ -40,6 +41,7 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent,
     result['manager_ip'] = manager_ip
     result['windows'] = _is_windows(node)
     result['broker_url'] = _BROKER_URL_FORMAT.format(result['manager_ip'])
+    result['version'] = _VERSION
     return result
 
 
