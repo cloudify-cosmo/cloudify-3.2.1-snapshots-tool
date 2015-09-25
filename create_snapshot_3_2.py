@@ -173,14 +173,15 @@ def worker(config):
     storage = dump_elasticsearch(path.join(tempdir, ELASTICSEARCH))
     metadata[_M_HAS_CLOUDIFY_EVENTS] = True
     # influxdb
-    influxdb_file = path.join(tempdir, INFLUXDB)
-    influxdb_temp_file = influxdb_file + '.temp'
-    call(INFLUXDB_DUMP_CMD.format(influxdb_temp_file), shell=True)
-    with open(influxdb_temp_file, 'r') as f, open(influxdb_file, 'w') as g:
-        for obj in get_json_objects(f):
-            g.write(obj + '\n')
+    if config.include_metrics:
+        influxdb_file = path.join(tempdir, INFLUXDB)
+        influxdb_temp_file = influxdb_file + '.temp'
+        call(INFLUXDB_DUMP_CMD.format(influxdb_temp_file), shell=True)
+        with open(influxdb_temp_file, 'r') as f, open(influxdb_file, 'w') as g:
+            for obj in get_json_objects(f):
+                g.write(obj + '\n')
 
-    os.remove(influxdb_temp_file)
+        os.remove(influxdb_temp_file)
 
     # credentials
     archive_cred_path = path.join(tempdir, CRED_DIR)
@@ -250,6 +251,9 @@ def main():
     parser.add_argument('--output-file', dest='output_file',
                         default='snapshot.zip')
 
+    parser.add_argument('--include-metrics',
+                        dest='include_metrics',
+                        action='store_true')
     pargs = parser.parse_args()
 
     if pargs.is_worker:
@@ -262,6 +266,8 @@ def main():
             '--fs-blueprints ' + pargs.file_server_blueprints_folder,
             '--fs-ublueprints ' + pargs.file_server_uploaded_blueprints_folder
         ])
+        if pargs.include_metrics:
+            wargs = '{0} --include-metrics'.format(wargs)
 
         driver(pargs.output_file, wargs)
 
