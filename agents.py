@@ -4,8 +4,10 @@ import json
 
 from cloudify_cli import utils as cli_utils
 
-
-_BROKER_URL_FORMAT = 'amqp://cloudify:c10udify@{0}:5672//'
+_BROKER_URL_FORMATS = {
+    '3.2.1': 'amqp://cloudify:c10udify@{0}:5672//',
+    '3.2': 'amqp://guest:guest@{0}:5672//'
+}
 
 
 def _is_compute(node):
@@ -22,7 +24,7 @@ def _get_rest_client():
 
 
 def _get_node_instance_agent(node_instance, node, bootstrap_agent,
-                             manager_ip, version):
+                             manager_ip, version, broker_url):
     result = {}
     agent = copy.deepcopy(bootstrap_agent)
     node_properties = node.properties
@@ -39,7 +41,7 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent,
         result['ip'] = node_properties['ip']
     result['manager_ip'] = manager_ip
     result['windows'] = _is_windows(node)
-    result['broker_url'] = _BROKER_URL_FORMAT.format(result['manager_ip'])
+    result['broker_url'] = broker_url
     result['version'] = version
     return result
 
@@ -54,6 +56,7 @@ def get_agents(client=None, manager_ip=None):
                    None)
     if version is None:
         raise RuntimeError('Unknown manager version {0}'.format(mgr_version))
+    broker_url = _BROKER_URL_FORMATS[version].format(manager_ip)
     bootstrap_agent = client.manager.get_context().get('context', {}).get(
         'cloudify', {}).get('cloudify_agent', {})
     result = {}
@@ -70,7 +73,8 @@ def get_agents(client=None, manager_ip=None):
                         node,
                         bootstrap_agent,
                         manager_ip,
-                        version)
+                        version,
+                        broker_url)
                 deployment_result[node.id] = node_result
         result[deployment.id] = deployment_result
     return result
