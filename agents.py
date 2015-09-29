@@ -26,6 +26,8 @@ def _get_rest_client():
 def _get_node_instance_agent(node_instance, node, bootstrap_agent,
                              manager_ip, version, broker_url):
     result = {}
+    if node_instance.state != 'started':
+        return result
     agent = copy.deepcopy(bootstrap_agent)
     node_properties = node.properties
     node_agent = node_properties.get('cloudify_agent', {})
