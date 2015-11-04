@@ -4,9 +4,16 @@ import json
 
 from cloudify_cli import utils as cli_utils
 
-_BROKER_URL_FORMATS = {
-    '3.2.1': 'amqp://cloudify:c10udify@{0}:5672//',
-    '3.2': 'amqp://guest:guest@{0}:5672//'
+
+_BROKER_CREDENTIALS = {
+    '3.2.1': {
+        'broker_user': 'cloudify',
+        'broker_pass': 'c10udify'
+    },
+    '3.2': {
+        'broker_user': 'guest',
+        'broker_pass': 'guest'
+    }
 }
 
 
@@ -24,7 +31,7 @@ def _get_rest_client():
 
 
 def _get_node_instance_agent(node_instance, node, bootstrap_agent,
-                             manager_ip, version, broker_url):
+                             manager_ip, version):
     result = {}
     if node_instance.state != 'started':
         return result
@@ -43,8 +50,14 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent,
         result['ip'] = node_properties['ip']
     result['manager_ip'] = manager_ip
     result['windows'] = _is_windows(node)
-    result['broker_url'] = broker_url
     result['version'] = version
+    broker_config = {
+        'broker_ip': manager_ip,
+        'broker_ssl_enabled': False,
+        'broker_ssl_cert': ''
+    }
+    broker_config.update(_BROKER_CREDENTIALS[version])
+    result['broker_config'] = broker_config
     return result
 
 
@@ -58,7 +71,6 @@ def get_agents(client=None, manager_ip=None):
                    None)
     if version is None:
         raise RuntimeError('Unknown manager version {0}'.format(mgr_version))
-    broker_url = _BROKER_URL_FORMATS[version].format(manager_ip)
     bootstrap_agent = client.manager.get_context().get('context', {}).get(
         'cloudify', {}).get('cloudify_agent', {})
     result = {}
@@ -75,8 +87,7 @@ def get_agents(client=None, manager_ip=None):
                         node,
                         bootstrap_agent,
                         manager_ip,
-                        version,
-                        broker_url)
+                        version)
                 deployment_result[node.id] = node_result
         result[deployment.id] = deployment_result
     return result
