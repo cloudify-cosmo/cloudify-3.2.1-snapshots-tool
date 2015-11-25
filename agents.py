@@ -57,7 +57,7 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent,
         'broker_ssl_cert': ''
     }
     broker_config.update(_BROKER_CREDENTIALS[version])
-    result['broker_config'] = broker_config
+    result.update(broker_config)
     return result
 
 
