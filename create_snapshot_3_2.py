@@ -107,12 +107,15 @@ def scp(local_path, path_on_manager, to_manager):
         get_management_server_ip(),
         path_on_manager
     )
-    command = [scp_path, '-i', os.path.expanduser(get_management_key())]
+    command = [scp_path, '-o', 'StrictHostKeyChecking=no',
+               '-i', os.path.expanduser(get_management_key())]
     if to_manager:
         command += [local_path, management_path]
     else:
         command += [management_path, local_path]
-    call(command)
+    rc = call(command)
+    if rc:
+        raise RuntimeError('Scp failed with exit code: {0}'.format(rc))
 
 
 def get_json_objects(f):
@@ -224,7 +227,8 @@ sudo docker exec cfy /bin/bash -c \
 'cd /tmp/home; python script.py --worker {0}'\
 '''.format(worker_args)])
     scp(output_path, '~/snapshot_3_2.zip', False)
-    call(['cfy', 'ssh', '-c', 'rm -f ~/snapshot_3_2.zip ~/script.py'])
+    call(['cfy', 'ssh', '-c',
+          'rm -f ~/snapshot_3_2.zip ~/script.py'])
     with zipfile.ZipFile(output_path, 'r') as archive:
         manager = json.loads(archive.open(MANAGER_FILE).read())
         manager_ip = manager[MANAGER_IP_KEY]
