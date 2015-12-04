@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--fs-ublueprints',
                         dest='file_server_uploaded_blueprints_folder',
                         default='uploaded-blueprints')
-    parser.add_argument('-o,--output-file', dest='output_file',
+    parser.add_argument('-o, --output-file', dest='output_file',
                         default='snapshot.zip')
     parser.add_argument('--include-metrics',
                         dest='include_metrics',
