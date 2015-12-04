@@ -2,12 +2,10 @@ import argparse
 import json
 import os
 import shutil
-import sys
 import tempfile
-import zipfile
 
 from os import path
-from distutils import spawn
+
 from subprocess import call
 from subprocess import check_output
 
@@ -21,7 +19,6 @@ _M_HAS_CLOUDIFY_EVENTS = 'has_cloudify_events'
 _M_VERSION = 'snapshot_version'
 
 VERSION = '3.2'
-AGENTS_FILE = 'agents.json'
 MANAGER_FILE = 'manager.json'
 MANAGER_IP_KEY = 'MANAGEMENT_IP'
 ELASTICSEARCH = 'es_data'
@@ -96,28 +93,6 @@ def dump_elasticsearch(file_path):
 
 
 # ------------------ Utils ---------------------
-def scp(local_path, path_on_manager, to_manager):
-    from cloudify_cli.utils import get_management_user
-    from cloudify_cli.utils import get_management_server_ip
-    from cloudify_cli.utils import get_management_key
-
-    scp_path = spawn.find_executable('scp')
-    management_path = '{0}@{1}:{2}'.format(
-        get_management_user(),
-        get_management_server_ip(),
-        path_on_manager
-    )
-    command = [scp_path, '-o', 'StrictHostKeyChecking=no',
-               '-i', os.path.expanduser(get_management_key())]
-    if to_manager:
-        command += [local_path, management_path]
-    else:
-        command += [management_path, local_path]
-    rc = call(command)
-    if rc:
-        raise RuntimeError('Scp failed with exit code: {0}'.format(rc))
-
-
 def get_json_objects(f):
     def chunks(g):
         ch = g.read(10000)
@@ -219,29 +194,8 @@ def worker(config):
     # end
     shutil.rmtree(tempdir)
 
-
-def driver(output_path, worker_args):
-    scp(sys.argv[0], '~/script.py', True)
-    call(['cfy', 'ssh', '-c', '''\
-sudo docker exec cfy /bin/bash -c \
-'cd /tmp/home; python script.py --worker {0}'\
-'''.format(worker_args)])
-    scp(output_path, '~/snapshot_3_2.zip', False)
-    call(['cfy', 'ssh', '-c',
-          'rm -f ~/snapshot_3_2.zip ~/script.py'])
-    with zipfile.ZipFile(output_path, 'r') as archive:
-        manager = json.loads(archive.open(MANAGER_FILE).read())
-        manager_ip = manager[MANAGER_IP_KEY]
-    import agents
-    _, agents_path = tempfile.mkstemp()
-    agents.dump_agents(agents_path, manager_ip)
-    with zipfile.ZipFile(output_path, 'a') as archive:
-        archive.write(agents_path, AGENTS_FILE)
-
-
-def main():
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--worker', dest='is_worker', action='store_true')
 
     parser.add_argument('--fs-root', dest='file_server_root',
                         default='/opt/manager/resources/')
@@ -251,30 +205,9 @@ def main():
     parser.add_argument('--fs-ublueprints',
                         dest='file_server_uploaded_blueprints_folder',
                         default='uploaded-blueprints')
-
-    parser.add_argument('--output-file', dest='output_file',
-                        default='snapshot.zip')
-
     parser.add_argument('--include-metrics',
                         dest='include_metrics',
                         action='store_true')
     pargs = parser.parse_args()
 
-    if pargs.is_worker:
-        # on docker
-        worker(pargs)
-    else:
-        # on host
-        wargs = ' '.join([
-            '--fs-root ' + pargs.file_server_root,
-            '--fs-blueprints ' + pargs.file_server_blueprints_folder,
-            '--fs-ublueprints ' + pargs.file_server_uploaded_blueprints_folder
-        ])
-        if pargs.include_metrics:
-            wargs = '{0} --include-metrics'.format(wargs)
-
-        driver(pargs.output_file, wargs)
-
-
-if __name__ == '__main__':
-    main()
+    worker(pargs)

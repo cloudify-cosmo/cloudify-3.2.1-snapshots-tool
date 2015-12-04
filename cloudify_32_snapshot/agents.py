@@ -4,7 +4,6 @@ import json
 
 from cloudify_cli import utils as cli_utils
 
-
 _BROKER_CREDENTIALS = {
     '3.2.1': {
         'broker_user': 'cloudify',
