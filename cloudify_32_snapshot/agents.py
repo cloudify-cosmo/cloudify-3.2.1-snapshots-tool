@@ -57,7 +57,7 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent,
     for key in ['user', 'password']:
         if key in agent:
             result[key] = agent[key]
-    result['name'] = node_instance.id
+    result['name'] = node_instance.id + '_342'
     result['queue'] = node_instance.id
     if 'ip' in node_instance.runtime_properties:
         result['ip'] = node_instance.runtime_properties['ip']
