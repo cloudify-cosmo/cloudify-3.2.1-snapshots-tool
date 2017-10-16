@@ -44,6 +44,7 @@ def main():
     parser.add_argument('--include-metrics',
                         dest='include_metrics',
                         action='store_true')
+    parser.add_argument('--new-manager-ip', dest='new_manager_ip')
     pargs = parser.parse_args()
 
     wargs = ' '.join([
@@ -54,10 +55,10 @@ def main():
     if pargs.include_metrics:
         wargs = '{0} --include-metrics'.format(wargs)
 
-    driver(pargs.output_file, wargs)
+    driver(pargs.output_file, wargs, pargs.new_manager_ip)
 
 
-def driver(output_path, worker_args):
+def driver(output_path, worker_args, new_manager_ip):
     script_path = os.path.join(
         os.path.dirname(__file__),
         'create_snapshot_3_2.py'
@@ -76,7 +77,7 @@ sudo docker exec cfy /bin/bash -c \
         manager_ip = manager[MANAGER_IP_KEY]
     import agents
     _, agents_path = tempfile.mkstemp()
-    agents.dump_agents(agents_path, manager_ip)
+    agents.dump_agents(agents_path, manager_ip, new_manager_ip)
     with zipfile.ZipFile(output_path, 'a') as archive:
         archive.write(agents_path, AGENTS_FILE)
 
