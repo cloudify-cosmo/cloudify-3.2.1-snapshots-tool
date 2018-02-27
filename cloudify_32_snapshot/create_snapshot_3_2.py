@@ -194,7 +194,7 @@ def worker(config):
     metadata[_M_VERSION] = VERSION
 
     manager = {
-        MANAGER_IP_KEY: os.environ[MANAGER_IP_KEY]
+        MANAGER_IP_KEY: config.manager_ip
     }
     with open(path.join(tempdir, MANAGER_FILE), 'w') as f:
         f.write(json.dumps(manager))
@@ -204,11 +204,12 @@ def worker(config):
         json.dump(metadata, f)
 
     # zip
-    shutil.make_archive('/tmp/home/snapshot_3_2',
+    shutil.make_archive('/home/ubuntu/snapshot_3_2',
                         'zip',
                         tempdir)
     # end
     shutil.rmtree(tempdir)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -224,6 +225,8 @@ if __name__ == '__main__':
     parser.add_argument('--include-metrics',
                         dest='include_metrics',
                         action='store_true')
+    parser.add_argument('--manager-ip',
+                        dest='manager_ip')
     pargs = parser.parse_args()
 
     worker(pargs)

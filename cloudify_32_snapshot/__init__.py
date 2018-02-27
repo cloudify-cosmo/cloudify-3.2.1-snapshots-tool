@@ -15,13 +15,13 @@
 
 
 import argparse
+import fabric.api
+import fabric.operations
 import json
 import os
 import zipfile
 import tempfile
 
-from distutils import spawn
-from subprocess import call
 
 from create_snapshot_3_2 import MANAGER_FILE, MANAGER_IP_KEY
 
@@ -29,49 +29,73 @@ AGENTS_FILE = 'agents.json'
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    try:
+        parser = argparse.ArgumentParser()
 
-    parser.add_argument('--fs-root', dest='file_server_root',
-                        default='/opt/manager/resources/')
-    parser.add_argument('--fs-blueprints',
-                        dest='file_server_blueprints_folder',
-                        default='blueprints')
-    parser.add_argument('--fs-ublueprints',
-                        dest='file_server_uploaded_blueprints_folder',
-                        default='uploaded-blueprints')
-    parser.add_argument('-o, --output-file', dest='output_file',
-                        default='snapshot.zip')
-    parser.add_argument('--include-metrics',
-                        dest='include_metrics',
-                        action='store_true')
-    parser.add_argument('--new-manager-ip', dest='new_manager_ip')
-    pargs = parser.parse_args()
+        parser.add_argument('--fs-root', dest='file_server_root',
+                            default='/opt/manager/resources/')
+        parser.add_argument('--fs-blueprints',
+                            dest='file_server_blueprints_folder',
+                            default='blueprints')
+        parser.add_argument('--fs-ublueprints',
+                            dest='file_server_uploaded_blueprints_folder',
+                            default='uploaded-blueprints')
+        parser.add_argument('-o, --output-file', dest='output_file',
+                            default='snapshot.zip')
+        parser.add_argument('--include-metrics',
+                            dest='include_metrics',
+                            action='store_true')
 
-    wargs = ' '.join([
-        '--fs-root ' + pargs.file_server_root,
-        '--fs-blueprints ' + pargs.file_server_blueprints_folder,
-        '--fs-ublueprints ' + pargs.file_server_uploaded_blueprints_folder
-    ])
-    if pargs.include_metrics:
-        wargs = '{0} --include-metrics'.format(wargs)
+        parser.add_argument('--manager-342-ip',
+                            dest='manager_342_ip')
+        parser.add_argument('--manager-321-ip',
+                            dest='manager_321_ip')
+        parser.add_argument('--manager-321-user',
+                            dest='manager_321_user')
+        parser.add_argument('--manager-321-key',
+                            dest='manager_321_key')
 
-    driver(pargs.output_file, wargs, pargs.new_manager_ip)
+        pargs = parser.parse_args()
+
+        wargs = ' '.join([
+            '--fs-root ' + pargs.file_server_root,
+            '--fs-blueprints ' + pargs.file_server_blueprints_folder,
+            '--fs-ublueprints ' + pargs.file_server_uploaded_blueprints_folder,
+            '--manager-ip ' + pargs.manager_321_ip
+        ])
+        if pargs.include_metrics:
+            wargs = '{0} --include-metrics'.format(wargs)
+
+        driver(pargs.output_file,
+               wargs,
+               pargs.manager_321_ip,
+               pargs.manager_321_user,
+               pargs.manager_321_key,
+               pargs.manager_342_ip)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
 
 
-def driver(output_path, worker_args, new_manager_ip):
+def driver(output_path,
+           worker_args,
+           old_manager_ip,
+           old_manager_user,
+           old_manager_key,
+           new_manager_ip):
     script_path = os.path.join(
         os.path.dirname(__file__),
         'create_snapshot_3_2.py'
     )
+    with fabric.api.settings(user=old_manager_user,
+                             host_string=old_manager_ip,
+                             key_filename=old_manager_key):
+        fabric.operations.put(script_path, '~/script.py')
+        fabric.operations.run('sudo docker exec cfy /bin/bash -c cd /tmp/home;'
+                              ' python script.py {0}'.format(worker_args))
+        fabric.operations.get('~/snapshot_3_2.zip', output_path)
+        fabric.operations.run('rm -f ~/snapshot_3_2.zip ~/script.py')
 
-    scp(script_path, '~/script.py', True)
-    call(['cfy', 'ssh', '-c', '''\
-sudo docker exec cfy /bin/bash -c \
-'cd /tmp/home; python script.py {0}'\
-'''.format(worker_args)])
-    scp(output_path, '~/snapshot_3_2.zip', False)
-    call(['cfy', 'ssh', '-c',
-          'rm -f ~/snapshot_3_2.zip ~/script.py'])
     with zipfile.ZipFile(output_path, 'r') as archive:
         manager = json.loads(archive.open(MANAGER_FILE).read())
         manager_ip = manager[MANAGER_IP_KEY]
@@ -80,25 +104,3 @@ sudo docker exec cfy /bin/bash -c \
     agents.dump_agents(agents_path, manager_ip, new_manager_ip)
     with zipfile.ZipFile(output_path, 'a') as archive:
         archive.write(agents_path, AGENTS_FILE)
-
-
-def scp(local_path, path_on_manager, to_manager):
-    from cloudify_cli.utils import get_management_user
-    from cloudify_cli.utils import get_management_server_ip
-    from cloudify_cli.utils import get_management_key
-
-    scp_path = spawn.find_executable('scp')
-    management_path = '{0}@{1}:{2}'.format(
-        get_management_user(),
-        get_management_server_ip(),
-        path_on_manager
-    )
-    command = [scp_path, '-o', 'StrictHostKeyChecking=no',
-               '-i', os.path.expanduser(get_management_key())]
-    if to_manager:
-        command += [local_path, management_path]
-    else:
-        command += [management_path, local_path]
-    rc = call(command)
-    if rc:
-        raise RuntimeError('Scp failed with exit code: {0}'.format(rc))

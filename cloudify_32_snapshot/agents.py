@@ -40,8 +40,7 @@ def _is_windows(node):
     return 'cloudify.openstack.nodes.WindowsServer' in node.type_hierarchy
 
 
-def _get_rest_client():
-    management_ip = cli_utils.get_management_server_ip()
+def _get_rest_client(management_ip):
     return cli_utils.get_rest_client(management_ip)
 
 
@@ -78,9 +77,7 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent,
 
 def get_agents(client=None, manager_ip=None, new_manager_ip=None):
     if client is None:
-        client = _get_rest_client()
-    if manager_ip is None:
-        manager_ip = cli_utils.get_management_server_ip()
+        client = _get_rest_client(manager_ip)
     mgr_version = client.manager.get_version()['version']
     version = next((v for v in ['3.2.1', '3.2'] if mgr_version.startswith(v)),
                    None)
