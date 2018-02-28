@@ -41,7 +41,9 @@ def _is_windows(node):
 
 
 def _get_rest_client(management_ip):
-    return cli_utils.get_rest_client(management_ip)
+    return cli_utils.get_rest_client(management_ip,
+                                     rest_port=80,
+                                     protocol='http')
 
 
 def _get_node_instance_agent(node_instance, node, bootstrap_agent,
