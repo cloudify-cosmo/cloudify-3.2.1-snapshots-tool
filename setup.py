@@ -30,7 +30,7 @@ setup(
         ],
     },
     install_requires=[
-        'fabric==1.13.1',
+        'fabric==1.8.3',
         'cloudify==3.2.1'
     ]
 )
