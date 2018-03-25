@@ -204,7 +204,7 @@ def worker(config):
         json.dump(metadata, f)
 
     # zip
-    shutil.make_archive('/home/ubuntu/snapshot_3_2',
+    shutil.make_archive('/tmp/home/snapshot_3_2',
                         'zip',
                         tempdir)
     # end

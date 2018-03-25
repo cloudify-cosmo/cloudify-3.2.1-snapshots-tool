@@ -45,6 +45,8 @@ def main():
         parser.add_argument('--include-metrics',
                             dest='include_metrics',
                             action='store_true')
+        parser.add_argument('--manager-321-home-folder',
+                            dest='manager_321_home_folder')
 
         parser.add_argument('--manager-342-ip',
                             dest='manager_342_ip')
@@ -71,7 +73,8 @@ def main():
                pargs.manager_321_ip,
                pargs.manager_321_user,
                pargs.manager_321_key,
-               pargs.manager_342_ip)
+               pargs.manager_342_ip,
+               pargs.manager_321_home_folder)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -82,7 +85,8 @@ def driver(output_path,
            old_manager_ip,
            old_manager_user,
            old_manager_key,
-           new_manager_ip):
+           new_manager_ip,
+           old_manager_home_folder):
     script_path = os.path.join(
         os.path.dirname(__file__),
         'create_snapshot_3_2.py'
@@ -90,11 +94,15 @@ def driver(output_path,
     with fabric.api.settings(user=old_manager_user,
                              host_string=old_manager_ip,
                              key_filename=old_manager_key):
-        fabric.operations.put(script_path, '~/script.py')
-        fabric.operations.run('sudo docker exec cfy /bin/bash -c cd /tmp/home;'
-                              ' python script.py {0}'.format(worker_args))
-        fabric.operations.get('~/snapshot_3_2.zip', output_path)
-        fabric.operations.run('rm -f ~/snapshot_3_2.zip ~/script.py')
+        fabric.operations.put(script_path,
+                              '{0}/script.py'.format(old_manager_home_folder),
+                              use_sudo=True)
+        fabric.operations.run('sudo docker exec cfy '
+                              '/bin/bash -c "python /tmp/home/script.py {0}"'.format(worker_args))
+        fabric.operations.sudo('mv {0}/snapshot_3_2.zip /tmp/snapshot_3_2.zip'.format(old_manager_home_folder))
+        fabric.operations.get('/tmp/snapshot_3_2.zip', output_path)
+        fabric.operations.sudo('rm -f {0}/snapshot_3_2.zip '
+                               '{0}/script.py'.format(old_manager_home_folder))
 
     with zipfile.ZipFile(output_path, 'r') as archive:
         manager = json.loads(archive.open(MANAGER_FILE).read())
