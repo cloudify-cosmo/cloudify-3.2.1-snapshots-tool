@@ -19,8 +19,9 @@ import json
 import os
 import shutil
 import tempfile
+import zipfile
 
-from os import path
+from os import path, walk
 
 from subprocess import call
 from subprocess import check_output
@@ -204,9 +205,14 @@ def worker(config):
         json.dump(metadata, f)
 
     # zip
-    shutil.make_archive('/tmp/home/snapshot_3_2',
-                        'zip',
-                        tempdir)
+
+    zf = zipfile.ZipFile('/tmp/home/snapshot_3_2.zip', mode='w', allowZip64=True)
+    for dirname, subdirs, files in walk(tempdir):
+        zf.write(dirname)
+        for filename in files:
+            zf.write(path.join(dirname, filename))
+    zf.close()
+
     # end
     shutil.rmtree(tempdir)
 
