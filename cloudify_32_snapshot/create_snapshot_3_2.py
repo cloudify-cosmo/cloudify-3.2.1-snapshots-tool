@@ -209,7 +209,7 @@ def worker(config):
     for dirname, subdirs, files in os.walk(abs_path):
         dest_dir = dirname.replace(os.path.dirname(abs_path), '', 1)
         for filename in files:
-            zf.write(os.path.join(dest_dir, filename),
+            zf.write(os.path.join(dirname, filename),
                      arcname=os.path.join(dest_dir, filename))
     zf.close()
 
