@@ -207,10 +207,12 @@ def worker(config):
     # zip
 
     zf = zipfile.ZipFile('/tmp/home/snapshot_3_2.zip', mode='w', allowZip64=True)
+    path = path.abspath(tempdir)
     for dirname, subdirs, files in walk(tempdir):
-        zf.write(dirname)
+        dest_dir = dirname.replace(os.path.dirname(tempdir), '', 1)
         for filename in files:
-            zf.write(path.join(dirname, filename))
+            zf.write(path.join(dest_dir, filename),
+                     arcname=os.path.join(dest_dir, filename))
     zf.close()
 
     # end

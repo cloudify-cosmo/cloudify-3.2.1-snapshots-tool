@@ -93,7 +93,9 @@ def driver(output_path,
     )
     with fabric.api.settings(user=old_manager_user,
                              host_string=old_manager_ip,
-                             key_filename=old_manager_key):
+                             key_filename=old_manager_key,
+                             shell='/bin/bash -c',
+                             keepalive=1):
         fabric.operations.put(script_path,
                               '{0}/script.py'.format(old_manager_home_folder),
                               use_sudo=True)
