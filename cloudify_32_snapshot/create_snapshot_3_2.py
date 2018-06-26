@@ -21,8 +21,6 @@ import shutil
 import tempfile
 import zipfile
 
-from os import path, walk
-
 from subprocess import call
 from subprocess import check_output
 
@@ -140,19 +138,19 @@ def copy_data(archive_root, config, to_archive=True):
     # files with constant relative/absolute paths
     for (p1, p2) in DATA_TO_COPY:
         if p1[0] != '/':
-            p1 = path.join(config.file_server_root, p1)
+            p1 = os.path.join(config.file_server_root, p1)
         if p2[0] != '/':
-            p2 = path.join(archive_root, p2)
+            p2 = os.path.join(archive_root, p2)
         if not to_archive:
             p1, p2 = p2, p1
 
-        if not path.exists(p1):
+        if not os.path.exists(p1):
             continue
 
-        if path.isfile(p1):
+        if os.path.isfile(p1):
             shutil.copy(p1, p2)
         else:
-            if path.exists(p2):
+            if os.path.exists(p2):
                 shutil.rmtree(p2, ignore_errors=True)
             shutil.copytree(p1, p2)
 
@@ -165,11 +163,11 @@ def worker(config):
     copy_data(tempdir, config)
 
     # elasticsearch
-    storage = dump_elasticsearch(path.join(tempdir, ELASTICSEARCH))
+    storage = dump_elasticsearch(os.path.join(tempdir, ELASTICSEARCH))
     metadata[_M_HAS_CLOUDIFY_EVENTS] = True
     # influxdb
     if config.include_metrics:
-        influxdb_file = path.join(tempdir, INFLUXDB)
+        influxdb_file = os.path.join(tempdir, INFLUXDB)
         influxdb_temp_file = influxdb_file + '.temp'
         call(INFLUXDB_DUMP_CMD.format(influxdb_temp_file), shell=True)
         with open(influxdb_temp_file, 'r') as f, open(influxdb_file, 'w') as g:
@@ -179,7 +177,7 @@ def worker(config):
         os.remove(influxdb_temp_file)
 
     # credentials
-    archive_cred_path = path.join(tempdir, CRED_DIR)
+    archive_cred_path = os.path.join(tempdir, CRED_DIR)
     os.makedirs(archive_cred_path)
 
     for n in filter(lambda x: x['_type'] == 'node', storage):
@@ -187,9 +185,9 @@ def worker(config):
         if 'cloudify_agent' in props and 'key' in props['cloudify_agent']:
             node_id = n['_id']
             agent_key_path = props['cloudify_agent']['key']
-            os.makedirs(path.join(archive_cred_path, node_id))
-            shutil.copy(path.expanduser(agent_key_path),
-                        path.join(archive_cred_path, node_id, CRED_KEY_NAME))
+            os.makedirs(os.path.join(archive_cred_path, node_id))
+            shutil.copy(os.path.expanduser(agent_key_path),
+                        os.path.join(archive_cred_path, node_id, CRED_KEY_NAME))
 
     # version
     metadata[_M_VERSION] = VERSION
@@ -197,21 +195,21 @@ def worker(config):
     manager = {
         MANAGER_IP_KEY: config.manager_ip
     }
-    with open(path.join(tempdir, MANAGER_FILE), 'w') as f:
+    with open(os.path.join(tempdir, MANAGER_FILE), 'w') as f:
         f.write(json.dumps(manager))
 
     # metadata
-    with open(path.join(tempdir, _METADATA_FILE), 'w') as f:
+    with open(os.path.join(tempdir, _METADATA_FILE), 'w') as f:
         json.dump(metadata, f)
 
     # zip
 
     zf = zipfile.ZipFile('/tmp/home/snapshot_3_2.zip', mode='w', allowZip64=True)
-    path = path.abspath(tempdir)
-    for dirname, subdirs, files in walk(tempdir):
-        dest_dir = dirname.replace(os.path.dirname(tempdir), '', 1)
+    abs_path = os.path.abspath(tempdir)
+    for dirname, subdirs, files in os.walk(abs_path):
+        dest_dir = dirname.replace(os.path.dirname(abs_path), '', 1)
         for filename in files:
-            zf.write(path.join(dest_dir, filename),
+            zf.write(os.path.join(dest_dir, filename),
                      arcname=os.path.join(dest_dir, filename))
     zf.close()
 
