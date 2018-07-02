@@ -26,7 +26,7 @@ from subprocess import check_output
 
 # ------------------ Constants ------------------------
 
-CHUNK_SIZE = 100
+CHUNK_SIZE = 1000
 
 _METADATA_FILE = 'metadata.json'
 # metadata fields
