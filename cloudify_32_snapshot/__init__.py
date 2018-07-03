@@ -17,6 +17,7 @@
 import argparse
 import fabric.api
 import fabric.operations
+import subprocess
 import json
 import os
 import zipfile
@@ -91,26 +92,30 @@ def driver(output_path,
         os.path.dirname(__file__),
         'create_snapshot_3_2.py'
     )
-    with fabric.api.settings(user=old_manager_user,
-                             host_string=old_manager_ip,
-                             key_filename=old_manager_key,
-                             shell='/bin/bash -c',
-                             keepalive=1):
-        fabric.operations.put(script_path,
-                              '{0}/script.py'.format(old_manager_home_folder),
-                              use_sudo=True)
-        fabric.operations.run('sudo docker exec cfy '
-                              '/bin/bash -c "python /tmp/home/script.py {0}"'.format(worker_args))
-        fabric.operations.sudo('mv {0}/snapshot_3_2.zip /tmp/snapshot_3_2.zip'.format(old_manager_home_folder))
-        fabric.operations.get('/tmp/snapshot_3_2.zip', output_path)
-        fabric.operations.sudo('rm -f {0}/snapshot_3_2.zip '
-                               '{0}/script.py'.format(old_manager_home_folder))
 
-    with zipfile.ZipFile(output_path, 'r') as archive:
+    tmp_script_location = '/tmp/script.py'
+    subprocess.check_output(['scp', '-i', old_manager_key, script_path,
+                             "%s@%s:%s" % (old_manager_user, old_manager_ip, tmp_script_location)])
+    subprocess.check_output(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+                             'sudo', 'mv', tmp_script_location, '%s/script.py' % old_manager_home_folder])
+    subprocess.check_output(['ssh', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
+                             '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+                             'sudo', 'docker', 'exec', 'cfy', '/bin/bash', '-c',
+                             '"python /tmp/home/script.py {0}"'.format(worker_args)])
+    tmp_location = '/tmp/snapshot_3_2.zip'
+    subprocess.check_output(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+                             'sudo', 'mv', '%s/snapshot_3_2.zip' % old_manager_home_folder, tmp_location])
+    subprocess.check_output(['scp', '-i', old_manager_key,
+                             "%s@%s:%s" % (old_manager_user, old_manager_ip, tmp_location),
+                             output_path])
+    subprocess.check_output(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+                             'sudo', 'rm', '-f', tmp_location, '%s/script.py' % old_manager_home_folder])
+
+    with zipfile.ZipFile(output_path, 'r',  allowZip64=True) as archive:
         manager = json.loads(archive.open(MANAGER_FILE).read())
         manager_ip = manager[MANAGER_IP_KEY]
     import agents
     _, agents_path = tempfile.mkstemp()
     agents.dump_agents(agents_path, manager_ip, new_manager_ip)
-    with zipfile.ZipFile(output_path, 'a') as archive:
+    with zipfile.ZipFile(output_path, 'a',  allowZip64=True) as archive:
         archive.write(agents_path, AGENTS_FILE)
