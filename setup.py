@@ -29,4 +29,8 @@ setup(
             'cfy-snapshot32=cloudify_32_snapshot:main',
         ],
     },
+    install_requires=[
+        'fabric==1.8.3',
+        'cloudify==3.2.1'
+    ]
 )

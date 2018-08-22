@@ -40,13 +40,14 @@ def _is_windows(node):
     return 'cloudify.openstack.nodes.WindowsServer' in node.type_hierarchy
 
 
-def _get_rest_client():
-    management_ip = cli_utils.get_management_server_ip()
-    return cli_utils.get_rest_client(management_ip)
+def _get_rest_client(management_ip):
+    return cli_utils.get_rest_client(management_ip,
+                                     rest_port=80,
+                                     protocol='http')
 
 
 def _get_node_instance_agent(node_instance, node, bootstrap_agent,
-                             manager_ip, version):
+                             manager_ip, version, new_manager_ip):
     result = {}
     if node_instance.state != 'started':
         return result
@@ -57,13 +58,13 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent,
     for key in ['user', 'password']:
         if key in agent:
             result[key] = agent[key]
-    result['name'] = node_instance.id
+    result['name'] = node_instance.id + '_342'
     result['queue'] = node_instance.id
     if 'ip' in node_instance.runtime_properties:
         result['ip'] = node_instance.runtime_properties['ip']
     elif 'ip' in node_properties:
         result['ip'] = node_properties['ip']
-    result['manager_ip'] = manager_ip
+    result['manager_ip'] = manager_ip if new_manager_ip is None else new_manager_ip
     result['windows'] = _is_windows(node)
     result['version'] = version
     broker_config = {
@@ -76,11 +77,9 @@ def _get_node_instance_agent(node_instance, node, bootstrap_agent,
     return result
 
 
-def get_agents(client=None, manager_ip=None):
+def get_agents(client=None, manager_ip=None, new_manager_ip=None):
     if client is None:
-        client = _get_rest_client()
-    if manager_ip is None:
-        manager_ip = cli_utils.get_management_server_ip()
+        client = _get_rest_client(manager_ip)
     mgr_version = client.manager.get_version()['version']
     version = next((v for v in ['3.2.1', '3.2'] if mgr_version.startswith(v)),
                    None)
@@ -102,14 +101,15 @@ def get_agents(client=None, manager_ip=None):
                         node,
                         bootstrap_agent,
                         manager_ip,
-                        version)
+                        version,
+                        new_manager_ip)
                 deployment_result[node.id] = node_result
         result[deployment.id] = deployment_result
     return result
 
 
-def dump_agents(filepath, manager_ip):
-    agents = get_agents(manager_ip=manager_ip)
+def dump_agents(filepath, manager_ip, new_manager_ip=None):
+    agents = get_agents(manager_ip=manager_ip, new_manager_ip=new_manager_ip)
     with open(filepath, 'w') as out:
         out.write(json.dumps(agents))
 
