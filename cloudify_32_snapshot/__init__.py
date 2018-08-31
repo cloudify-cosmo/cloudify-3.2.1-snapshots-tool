@@ -30,55 +30,65 @@ AGENTS_FILE = 'agents.json'
 
 
 def main():
-    try:
-        parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
 
-        parser.add_argument('--fs-root', dest='file_server_root',
-                            default='/opt/manager/resources/')
-        parser.add_argument('--fs-blueprints',
-                            dest='file_server_blueprints_folder',
-                            default='blueprints')
-        parser.add_argument('--fs-ublueprints',
-                            dest='file_server_uploaded_blueprints_folder',
-                            default='uploaded-blueprints')
-        parser.add_argument('-o, --output-file', dest='output_file',
-                            default='snapshot.zip')
-        parser.add_argument('--include-metrics',
-                            dest='include_metrics',
-                            action='store_true')
-        parser.add_argument('--manager-321-home-folder',
-                            dest='manager_321_home_folder')
+    parser.add_argument('--fs-root', dest='file_server_root',
+                        default='/opt/manager/resources/')
+    parser.add_argument('--fs-blueprints',
+                        dest='file_server_blueprints_folder',
+                        default='blueprints')
+    parser.add_argument('--fs-ublueprints',
+                        dest='file_server_uploaded_blueprints_folder',
+                        default='uploaded-blueprints')
+    parser.add_argument('-o, --output-file', dest='output_file',
+                        default='snapshot.zip')
+    parser.add_argument('--include-metrics',
+                        dest='include_metrics',
+                        action='store_true')
+    parser.add_argument('--manager-321-home-folder',
+                        dest='manager_321_home_folder')
 
-        parser.add_argument('--manager-342-ip',
-                            dest='manager_342_ip')
-        parser.add_argument('--manager-321-ip',
-                            dest='manager_321_ip')
-        parser.add_argument('--manager-321-user',
-                            dest='manager_321_user')
-        parser.add_argument('--manager-321-key',
-                            dest='manager_321_key')
+    parser.add_argument('--manager-342-ip',
+                        dest='manager_342_ip')
+    parser.add_argument('--manager-321-ip',
+                        dest='manager_321_ip')
+    parser.add_argument('--manager-321-user',
+                        dest='manager_321_user')
+    parser.add_argument('--manager-321-key',
+                        dest='manager_321_key')
+    parser.add_argument('--chunk-size',
+                        dest='chunk_size',
+                        type=int,
+                        default=1000)
+    parser.add_argument('--remote-output',
+                        dest='remote_output',
+                        required=True)
+    parser.add_argument('--remote-temp-dir',
+                        dest='remote_temp_dir',
+                        default=None)
 
-        pargs = parser.parse_args()
+    pargs = parser.parse_args()
 
-        wargs = ' '.join([
-            '--fs-root ' + pargs.file_server_root,
-            '--fs-blueprints ' + pargs.file_server_blueprints_folder,
-            '--fs-ublueprints ' + pargs.file_server_uploaded_blueprints_folder,
-            '--manager-ip ' + pargs.manager_321_ip
-        ])
-        if pargs.include_metrics:
-            wargs = '{0} --include-metrics'.format(wargs)
+    wargs = ' '.join([
+        '--fs-root ' + pargs.file_server_root,
+        '--fs-blueprints ' + pargs.file_server_blueprints_folder,
+        '--fs-ublueprints ' + pargs.file_server_uploaded_blueprints_folder,
+        '--manager-ip ' + pargs.manager_321_ip,
+        '--chunk-size ' + str(pargs.chunk_size),
+        '--output ' + pargs.remote_output
+    ])
+    if pargs.remote_temp_dir:
+        wargs += ' --temp-dir {}'.format(pargs.remote_temp_dir)
+    if pargs.include_metrics:
+        wargs += ' --include-metrics'
 
-        driver(pargs.output_file,
-               wargs,
-               pargs.manager_321_ip,
-               pargs.manager_321_user,
-               pargs.manager_321_key,
-               pargs.manager_342_ip,
-               pargs.manager_321_home_folder)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    driver(pargs.output_file,
+           wargs,
+           pargs.manager_321_ip,
+           pargs.manager_321_user,
+           pargs.manager_321_key,
+           pargs.manager_342_ip,
+           pargs.manager_321_home_folder)
 
 
 def driver(output_path,
@@ -93,23 +103,27 @@ def driver(output_path,
         'create_snapshot_3_2.py'
     )
 
+    def _call(cmd):
+        print "Executing: {}".format(cmd)
+        subprocess.check_output(cmd)
+
     tmp_script_location = '/tmp/script.py'
-    subprocess.check_output(['scp', '-i', old_manager_key, script_path,
-                             "%s@%s:%s" % (old_manager_user, old_manager_ip, tmp_script_location)])
-    subprocess.check_output(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
-                             'sudo', 'mv', tmp_script_location, '%s/script.py' % old_manager_home_folder])
-    subprocess.check_output(['ssh', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
-                             '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
-                             'sudo', 'docker', 'exec', 'cfy', '/bin/bash', '-c',
-                             '"python /tmp/home/script.py {0}"'.format(worker_args)])
+    _call(['scp', '-i', old_manager_key, script_path,
+           "%s@%s:%s" % (old_manager_user, old_manager_ip, tmp_script_location)])
+    _call(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+           'sudo', 'mv', tmp_script_location, '%s/script.py' % old_manager_home_folder])
+    _call(['ssh', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
+           '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+           'sudo', 'docker', 'exec', 'cfy', '/bin/bash', '-c',
+           '"python -u /tmp/home/script.py {0}"'.format(worker_args)])
     tmp_location = '/tmp/snapshot_3_2.zip'
-    subprocess.check_output(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
-                             'sudo', 'mv', '%s/snapshot_3_2.zip' % old_manager_home_folder, tmp_location])
-    subprocess.check_output(['scp', '-i', old_manager_key,
-                             "%s@%s:%s" % (old_manager_user, old_manager_ip, tmp_location),
-                             output_path])
-    subprocess.check_output(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
-                             'sudo', 'rm', '-f', tmp_location, '%s/script.py' % old_manager_home_folder])
+    _call(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+           'sudo', 'mv', '%s/snapshot_3_2.zip' % old_manager_home_folder, tmp_location])
+    _call(['scp', '-i', old_manager_key,
+           "%s@%s:%s" % (old_manager_user, old_manager_ip, tmp_location),
+           output_path])
+    _call(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+           'sudo', 'rm', '-f', tmp_location, '%s/script.py' % old_manager_home_folder])
 
     with zipfile.ZipFile(output_path, 'r',  allowZip64=True) as archive:
         manager = json.loads(archive.open(MANAGER_FILE).read())

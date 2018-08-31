@@ -26,8 +26,6 @@ from subprocess import check_output
 
 # ------------------ Constants ------------------------
 
-CHUNK_SIZE = 1000
-
 _METADATA_FILE = 'metadata.json'
 # metadata fields
 _M_HAS_CLOUDIFY_EVENTS = 'has_cloudify_events'
@@ -78,18 +76,18 @@ def _append_to_file(f, js):
     f.write(_convert_to_bulk(js['hits']['hits']))
 
 
-def _dump_chunks(f, template, save=False):
-    cmd = template.format(start='0', size=str(CHUNK_SIZE))
+def _dump_chunks(f, template, chunk_size, save=False):
+    cmd = template.format(start='0', size=str(chunk_size))
     js = json.loads(_get_chunk(cmd))
     if save:
         data = js['hits']['hits']
     _append_to_file(f, js)
     total = int(js['hits']['total'])
-    if total > CHUNK_SIZE:
-        for i in xrange(CHUNK_SIZE, total, CHUNK_SIZE):
+    if total > chunk_size:
+        for i in xrange(chunk_size, total, chunk_size):
             cmd = template.format(
                     start=str(i),
-                    size=str(CHUNK_SIZE))
+                    size=str(chunk_size))
             js = json.loads(_get_chunk(cmd))
             if save:
                 data.extend(js['hits']['hits'])
@@ -99,10 +97,10 @@ def _dump_chunks(f, template, save=False):
         return data
 
 
-def dump_elasticsearch(file_path):
+def dump_elasticsearch(file_path, chunk_size):
     with open(file_path, 'w') as f:
-        data = _dump_chunks(f, DUMP_STORAGE_TEMPLATE, save=True)
-        _dump_chunks(f, DUMP_EVENTS_TEMPLATE)
+        data = _dump_chunks(f, DUMP_STORAGE_TEMPLATE, chunk_size, save=True)
+        _dump_chunks(f, DUMP_EVENTS_TEMPLATE, chunk_size)
 
     return data
 
@@ -158,28 +156,42 @@ def copy_data(archive_root, config, to_archive=True):
 # ------------------ Main ---------------------
 def worker(config):
     metadata = {}
-    tempdir = tempfile.mkdtemp('-snapshot-data')
+    if config.temp_dir and not os.path.isdir(config.temp_dir):
+        print "Creating base temporary directory: {}".format(config.temp_dir)
+        os.makedirs(config.temp_dir)
+    tempdir = tempfile.mkdtemp('-snapshot-data', dir=config.temp_dir)
+    print "Using temporary directory: {}".format(tempdir)
+
     # files/dirs copy
+    print "Copying data to {}; config={}".format(tempdir, config)
     copy_data(tempdir, config)
 
     # elasticsearch
-    storage = dump_elasticsearch(os.path.join(tempdir, ELASTICSEARCH))
+    print "Dumping Elasticsearch data..."
+    storage = dump_elasticsearch(os.path.join(tempdir, ELASTICSEARCH), config.chunk_size)
+    print "Elasticsearch data dumped successfully"
+
     metadata[_M_HAS_CLOUDIFY_EVENTS] = True
     # influxdb
     if config.include_metrics:
         influxdb_file = os.path.join(tempdir, INFLUXDB)
         influxdb_temp_file = influxdb_file + '.temp'
+        print "Dumping InfluxDB data..."
         call(INFLUXDB_DUMP_CMD.format(influxdb_temp_file), shell=True)
+        print "InfluxDB data dumped; now post-processing it..."
         with open(influxdb_temp_file, 'r') as f, open(influxdb_file, 'w') as g:
             for obj in get_json_objects(f):
                 g.write(obj + '\n')
-
+        print "Post-processing completed"
         os.remove(influxdb_temp_file)
+    else:
+        print "Skipping InfluxDB data dump"
 
     # credentials
     archive_cred_path = os.path.join(tempdir, CRED_DIR)
     os.makedirs(archive_cred_path)
 
+    print "Dumping agents data..."
     for n in filter(lambda x: x['_type'] == 'node', storage):
         props = n['_source']['properties']
         if 'cloudify_agent' in props and 'key' in props['cloudify_agent']:
@@ -188,6 +200,7 @@ def worker(config):
             os.makedirs(os.path.join(archive_cred_path, node_id))
             shutil.copy(os.path.expanduser(agent_key_path),
                         os.path.join(archive_cred_path, node_id, CRED_KEY_NAME))
+    print "Agents data dumped successfully"
 
     # version
     metadata[_M_VERSION] = VERSION
@@ -195,16 +208,19 @@ def worker(config):
     manager = {
         MANAGER_IP_KEY: config.manager_ip
     }
+
+    print "Writing manager file"
     with open(os.path.join(tempdir, MANAGER_FILE), 'w') as f:
         f.write(json.dumps(manager))
 
     # metadata
+    print "Writing metadata"
     with open(os.path.join(tempdir, _METADATA_FILE), 'w') as f:
         json.dump(metadata, f)
 
     # zip
-
-    zf = zipfile.ZipFile('/tmp/home/snapshot_3_2.zip', mode='w', allowZip64=True)
+    print "Creating output archive at {}...".format(config.output)
+    zf = zipfile.ZipFile(config.output, mode='w', allowZip64=True)
     abs_path = os.path.abspath(tempdir)
     for dirname, subdirs, files in os.walk(abs_path):
         dest_dir = dirname.replace(abs_path, '', 1)
@@ -212,6 +228,7 @@ def worker(config):
             zf.write(os.path.join(dirname, filename),
                      arcname=os.path.join(dest_dir, filename))
     zf.close()
+    print "Archive created"
 
     # end
     shutil.rmtree(tempdir)
@@ -233,6 +250,15 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument('--manager-ip',
                         dest='manager_ip')
+    parser.add_argument('--chunk-size',
+                        dest='chunk_size',
+                        type=int,
+                        default=1000)
+    parser.add_argument('--output',
+                        required=True)
+    parser.add_argument('--temp-dir',
+                        dest='temp_dir',
+                        default=None)
     pargs = parser.parse_args()
 
     worker(pargs)
