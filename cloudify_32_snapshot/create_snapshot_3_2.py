@@ -83,6 +83,7 @@ def _dump_chunks(f, template, chunk_size, save=False):
         data = js['hits']['hits']
     _append_to_file(f, js)
     total = int(js['hits']['total'])
+    print "Processed: {}/{}".format(min(chunk_size, total), total)
     if total > chunk_size:
         for i in xrange(chunk_size, total, chunk_size):
             cmd = template.format(
@@ -92,6 +93,7 @@ def _dump_chunks(f, template, chunk_size, save=False):
             if save:
                 data.extend(js['hits']['hits'])
             _append_to_file(f, js)
+            print "Processed: {}/{}".format(min(total, i+chunk_size), total)
 
     if save:
         return data
@@ -99,7 +101,9 @@ def _dump_chunks(f, template, chunk_size, save=False):
 
 def dump_elasticsearch(file_path, chunk_size):
     with open(file_path, 'w') as f:
+        print "Dumping Cloudify Storage..."
         data = _dump_chunks(f, DUMP_STORAGE_TEMPLATE, chunk_size, save=True)
+        print "Dumping Cloudify Events..."
         _dump_chunks(f, DUMP_EVENTS_TEMPLATE, chunk_size)
 
     return data
@@ -220,7 +224,7 @@ def worker(config):
 
     # zip
     print "Creating output archive at {}...".format(config.output)
-    zf = zipfile.ZipFile(config.output, mode='w', allowZip64=True)
+    zf = zipfile.ZipFile(config.output, mode='w', compression=zipfile.ZIP_DEFLATED, allowZip64=True)
     abs_path = os.path.abspath(tempdir)
     for dirname, subdirs, files in os.walk(abs_path):
         dest_dir = dirname.replace(abs_path, '', 1)

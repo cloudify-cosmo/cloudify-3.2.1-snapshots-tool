@@ -15,8 +15,6 @@
 
 
 import argparse
-import fabric.api
-import fabric.operations
 import subprocess
 import json
 import os
@@ -62,10 +60,16 @@ def main():
                         default=1000)
     parser.add_argument('--remote-output',
                         dest='remote_output',
-                        required=True)
+                        required=True,
+                        help="Location, inside the docker container, where the snapshot should be stored")
     parser.add_argument('--remote-temp-dir',
                         dest='remote_temp_dir',
                         default=None)
+    parser.add_argument('--remote-output-host',
+                        dest='remote_output_host',
+                        required=True,
+                        help="Location to download the snapshot from; this is the 'host' view of the value "
+                             "provided by the '--remote-output' parameter")
 
     pargs = parser.parse_args()
 
@@ -88,7 +92,8 @@ def main():
            pargs.manager_321_user,
            pargs.manager_321_key,
            pargs.manager_342_ip,
-           pargs.manager_321_home_folder)
+           pargs.manager_321_home_folder,
+           pargs.remote_output_host)
 
 
 def driver(output_path,
@@ -97,7 +102,8 @@ def driver(output_path,
            old_manager_user,
            old_manager_key,
            new_manager_ip,
-           old_manager_home_folder):
+           old_manager_home_folder,
+           remote_output_host):
     script_path = os.path.join(
         os.path.dirname(__file__),
         'create_snapshot_3_2.py'
@@ -116,14 +122,11 @@ def driver(output_path,
            '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
            'sudo', 'docker', 'exec', 'cfy', '/bin/bash', '-c',
            '"python -u /tmp/home/script.py {0}"'.format(worker_args)])
-    tmp_location = '/tmp/snapshot_3_2.zip'
-    _call(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
-           'sudo', 'mv', '%s/snapshot_3_2.zip' % old_manager_home_folder, tmp_location])
     _call(['scp', '-i', old_manager_key,
-           "%s@%s:%s" % (old_manager_user, old_manager_ip, tmp_location),
+           "%s@%s:%s" % (old_manager_user, old_manager_ip, remote_output_host),
            output_path])
     _call(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
-           'sudo', 'rm', '-f', tmp_location, '%s/script.py' % old_manager_home_folder])
+           'sudo', 'rm', '-f', remote_output_host, '%s/script.py' % old_manager_home_folder])
 
     with zipfile.ZipFile(output_path, 'r',  allowZip64=True) as archive:
         manager = json.loads(archive.open(MANAGER_FILE).read())
