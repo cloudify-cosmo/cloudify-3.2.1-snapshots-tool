@@ -128,11 +128,11 @@ def driver(output_path,
     _call(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
            'sudo', 'rm', '-f', remote_output_host, '%s/script.py' % old_manager_home_folder])
 
-    with zipfile.ZipFile(output_path, 'r',  allowZip64=True) as archive:
+    with zipfile.ZipFile(output_path, 'r',  compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
         manager = json.loads(archive.open(MANAGER_FILE).read())
         manager_ip = manager[MANAGER_IP_KEY]
     import agents
     _, agents_path = tempfile.mkstemp()
     agents.dump_agents(agents_path, manager_ip, new_manager_ip)
-    with zipfile.ZipFile(output_path, 'a',  allowZip64=True) as archive:
+    with zipfile.ZipFile(output_path, 'a',  compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
         archive.write(agents_path, AGENTS_FILE)
