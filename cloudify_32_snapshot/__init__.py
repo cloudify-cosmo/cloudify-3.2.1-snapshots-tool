@@ -57,7 +57,11 @@ def main():
     parser.add_argument('--chunk-size',
                         dest='chunk_size',
                         type=int,
-                        default=1000)
+                        default=2500)
+    parser.add_argument('--events-chunk-size',
+                        dest='events_chunk_size',
+                        type=int,
+                        default=30000)
     parser.add_argument('--remote-output',
                         dest='remote_output',
                         required=True,
@@ -79,6 +83,7 @@ def main():
         '--fs-ublueprints ' + pargs.file_server_uploaded_blueprints_folder,
         '--manager-ip ' + pargs.manager_321_ip,
         '--chunk-size ' + str(pargs.chunk_size),
+        '--events-chunk-size ' + str(pargs.events_chunk_size),
         '--output ' + pargs.remote_output
     ])
     if pargs.remote_temp_dir:
@@ -111,7 +116,7 @@ def driver(output_path,
 
     def _call(cmd):
         print "Executing: {}".format(cmd)
-        subprocess.check_output(cmd)
+        subprocess.check_call(cmd, bufsize=1)
 
     tmp_script_location = '/tmp/script.py'
     _call(['scp', '-i', old_manager_key, script_path,

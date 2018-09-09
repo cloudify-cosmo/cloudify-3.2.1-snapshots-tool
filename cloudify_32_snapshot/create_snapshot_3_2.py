@@ -21,8 +21,7 @@ import shutil
 import tempfile
 import zipfile
 
-from subprocess import call
-from subprocess import check_output
+from subprocess import check_call, check_output
 
 # ------------------ Constants ------------------------
 
@@ -83,7 +82,7 @@ def _dump_chunks(f, template, chunk_size, save=False):
         data = js['hits']['hits']
     _append_to_file(f, js)
     total = int(js['hits']['total'])
-    print "Processed: {}/{}".format(min(chunk_size, total), total)
+    print "Processed: {}/{} ({:5.2f}%)".format(min(chunk_size, total), total, min(chunk_size, total)*100/float(total))
     if total > chunk_size:
         for i in xrange(chunk_size, total, chunk_size):
             cmd = template.format(
@@ -93,18 +92,18 @@ def _dump_chunks(f, template, chunk_size, save=False):
             if save:
                 data.extend(js['hits']['hits'])
             _append_to_file(f, js)
-            print "Processed: {}/{}".format(min(total, i+chunk_size), total)
+            print "Processed: {}/{} ({:5.2f}%)".format(min(total, i+chunk_size), total, min(total, i+chunk_size)*100/float(total))
 
     if save:
         return data
 
 
-def dump_elasticsearch(file_path, chunk_size):
+def dump_elasticsearch(file_path, chunk_size, events_chunk_size):
     with open(file_path, 'w') as f:
         print "Dumping Cloudify Storage..."
         data = _dump_chunks(f, DUMP_STORAGE_TEMPLATE, chunk_size, save=True)
         print "Dumping Cloudify Events..."
-        _dump_chunks(f, DUMP_EVENTS_TEMPLATE, chunk_size)
+        _dump_chunks(f, DUMP_EVENTS_TEMPLATE, events_chunk_size)
 
     return data
 
@@ -172,7 +171,8 @@ def worker(config):
 
     # elasticsearch
     print "Dumping Elasticsearch data..."
-    storage = dump_elasticsearch(os.path.join(tempdir, ELASTICSEARCH), config.chunk_size)
+    storage = dump_elasticsearch(os.path.join(tempdir, ELASTICSEARCH), config.chunk_size,
+                                 config.events_chunk_size)
     print "Elasticsearch data dumped successfully"
 
     metadata[_M_HAS_CLOUDIFY_EVENTS] = True
@@ -181,7 +181,7 @@ def worker(config):
         influxdb_file = os.path.join(tempdir, INFLUXDB)
         influxdb_temp_file = influxdb_file + '.temp'
         print "Dumping InfluxDB data..."
-        call(INFLUXDB_DUMP_CMD.format(influxdb_temp_file), shell=True)
+        check_call(INFLUXDB_DUMP_CMD.format(influxdb_temp_file), shell=True)
         print "InfluxDB data dumped; now post-processing it..."
         with open(influxdb_temp_file, 'r') as f, open(influxdb_file, 'w') as g:
             for obj in get_json_objects(f):
@@ -224,6 +224,7 @@ def worker(config):
 
     # zip
     print "Creating output archive at {}...".format(config.output)
+
     zf = zipfile.ZipFile(config.output, mode='w', compression=zipfile.ZIP_DEFLATED, allowZip64=True)
     abs_path = os.path.abspath(tempdir)
     for dirname, subdirs, files in os.walk(abs_path):
@@ -257,7 +258,11 @@ if __name__ == '__main__':
     parser.add_argument('--chunk-size',
                         dest='chunk_size',
                         type=int,
-                        default=1000)
+                        default=2500)
+    parser.add_argument('--events-chunk-size',
+                        dest='events_chunk_size',
+                        type=int,
+                        default=10000)
     parser.add_argument('--output',
                         required=True)
     parser.add_argument('--temp-dir',
