@@ -21,6 +21,15 @@ import shutil
 import tempfile
 import zipfile
 
+try:
+    import ujson
+    print "'ujson' exists - will use it for most JSON operations"
+except ImportError:
+    print "'ujson' library not available; will use the built-in 'json' library instead"
+    # 'ujson' is, for the most part (and for all usages we exercise), a drop-in
+    # replacement for 'json' so this assignment should be OK.
+    ujson = json
+
 from subprocess import check_call, check_output
 
 # ------------------ Constants ------------------------
@@ -64,7 +73,7 @@ def _convert_to_bulk(chunk):
         if n['_type'] == 'execution' and\
                 'is_system_workflow' not in n['_source']:
             n['_source']['is_system_workflow'] = False
-        return json.dumps(n)
+        return ujson.dumps(n)
 
     return '\n'.join([_remove_newlines(patch_node(n))
                       for n in chunk if n['_type'] != 'provider_context'])\
@@ -77,7 +86,7 @@ def _append_to_file(f, js):
 
 def _dump_chunks(f, template, chunk_size, save=False):
     cmd = template.format(start='0', size=str(chunk_size))
-    js = json.loads(_get_chunk(cmd))
+    js = ujson.loads(_get_chunk(cmd))
     if save:
         data = js['hits']['hits']
     _append_to_file(f, js)
@@ -88,7 +97,7 @@ def _dump_chunks(f, template, chunk_size, save=False):
             cmd = template.format(
                     start=str(i),
                     size=str(chunk_size))
-            js = json.loads(_get_chunk(cmd))
+            js = ujson.loads(_get_chunk(cmd))
             if save:
                 data.extend(js['hits']['hits'])
             _append_to_file(f, js)
@@ -124,7 +133,7 @@ def get_json_objects(f):
         try:
             while s:
                 obj, idx = decoder.raw_decode(s)
-                yield json.dumps(obj)
+                yield ujson.dumps(obj)
                 s = s[idx:]
         except:
             pass
@@ -215,12 +224,12 @@ def worker(config):
 
     print "Writing manager file"
     with open(os.path.join(tempdir, MANAGER_FILE), 'w') as f:
-        f.write(json.dumps(manager))
+        f.write(ujson.dumps(manager))
 
     # metadata
     print "Writing metadata"
     with open(os.path.join(tempdir, _METADATA_FILE), 'w') as f:
-        json.dump(metadata, f)
+        ujson.dump(metadata, f)
 
     # zip
     print "Creating output archive at {}...".format(config.output)
