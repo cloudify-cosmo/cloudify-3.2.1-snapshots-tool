@@ -18,7 +18,7 @@ from setuptools import setup
 
 setup(
     name='cloudify-3.2-snapshot',
-    version='1.0.4',
+    version='1.0.5',
     packages=['cloudify_32_snapshot'],
     license='LICENSE',
     keywords='cloudify 3.2 snapshots',

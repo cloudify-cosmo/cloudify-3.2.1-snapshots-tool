@@ -74,6 +74,11 @@ def main():
                         required=True,
                         help="Location to download the snapshot from; this is the 'host' view of the value "
                              "provided by the '--remote-output' parameter")
+    parser.add_argument('--install-ujson',
+                        dest='install_ujson',
+                        action='store_true',
+                        default=False,
+                        help="Install the 'ujson' library before creating the snapshot")
 
     pargs = parser.parse_args()
 
@@ -98,7 +103,8 @@ def main():
            pargs.manager_321_key,
            pargs.manager_342_ip,
            pargs.manager_321_home_folder,
-           pargs.remote_output_host)
+           pargs.remote_output_host,
+           pargs.install_ujson)
 
 
 def driver(output_path,
@@ -108,7 +114,8 @@ def driver(output_path,
            old_manager_key,
            new_manager_ip,
            old_manager_home_folder,
-           remote_output_host):
+           remote_output_host,
+           install_ujson):
     script_path = os.path.join(
         os.path.dirname(__file__),
         'create_snapshot_3_2.py'
@@ -123,6 +130,11 @@ def driver(output_path,
            "%s@%s:%s" % (old_manager_user, old_manager_ip, tmp_script_location)])
     _call(['ssh', '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
            'sudo', 'mv', tmp_script_location, '%s/script.py' % old_manager_home_folder])
+    if install_ujson:
+        _call(['ssh', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
+               '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
+               'sudo', 'docker', 'exec', 'cfy', '/bin/bash', '-c',
+               '"pip install ujson"'])
     _call(['ssh', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
            '-i', old_manager_key, "%s@%s" % (old_manager_user, old_manager_ip),
            'sudo', 'docker', 'exec', 'cfy', '/bin/bash', '-c',
